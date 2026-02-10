@@ -1,0 +1,126 @@
+/* COMMANDS TO RUN:
+  1. npm install express socket.io
+  2. node index.js
+*/
+
+const express = require('express');
+const http = require('http');
+const { Server } = require('socket.io');
+const path = require('path');
+
+const app = express();
+const server = http.createServer(app);
+const io = new Server(server);
+
+// --- SERVER LOGIC ---
+io.on('connection', (socket) => {
+    console.log('User connected:', socket.id);
+
+    // Chat Logic
+    socket.on('message', (data) => {
+        io.emit('message', data); // Broadcast to everyone
+    });
+
+    // Reel Interaction
+    socket.on('like-reel', (reelId) => {
+        io.emit('update-likes', { id: reelId, count: Math.floor(Math.random() * 100) });
+    });
+
+    socket.on('disconnect', () => console.log('User disconnected'));
+});
+
+// Serve the app on a single route
+app.get('/', (req, res) => {
+    res.send(`
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SecureChat Pro</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        :root { --bg: #0b0e11; --card: #1c2127; --accent: #00a884; --text: #e9edef; }
+        body { margin: 0; font-family: sans-serif; background: var(--bg); color: var(--text); overflow: hidden; }
+        
+        /* Layout */
+        .app-container { display: flex; height: 100vh; flex-direction: column; }
+        
+        /* Reels Section */
+        #reels-feed { flex: 1; overflow-y: scroll; scroll-snap-type: y mandatory; }
+        .reel { height: 100vh; scroll-snap-align: start; position: relative; background: #000; display: flex; align-items: center; justify-content: center; }
+        .reel video { height: 100%; width: 100%; object-fit: cover; }
+        .reel-overlay { position: absolute; bottom: 100px; left: 20px; text-shadow: 2px 2px 4px rgba(0,0,0,0.5); }
+        
+        /* Chat Section (Hidden by default, toggled by user) */
+        #chat-window { position: fixed; bottom: 0; width: 100%; height: 40%; background: var(--card); border-radius: 20px 20px 0 0; transform: translateY(100%); transition: 0.3s; padding: 20px; box-sizing: border-box; }
+        #chat-window.active { transform: translateY(0); }
+        #messages { height: 70%; overflow-y: auto; list-style: none; padding: 0; }
+        .msg { background: #333; padding: 8px; border-radius: 10px; margin-bottom: 5px; width: fit-content; }
+        
+        /* Buttons */
+        .btn-fab { position: fixed; right: 20px; bottom: 20px; background: var(--accent); border: none; padding: 15px; border-radius: 50%; color: white; cursor: pointer; z-index: 10; }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <div id="reels-feed">
+            <div class="reel" id="reel-1">
+                <video src="https://www.w3schools.com/html/mov_bbb.mp4" loop muted autoplay></video>
+                <div class="reel-overlay"><h3>@Creator1</h3><p>SecureChat is awesome! #privacy</p></div>
+            </div>
+            <div class="reel" id="reel-2">
+                <video src="https://www.w3schools.com/html/movie.mp4" loop muted></video>
+                <div class="reel-overlay"><h3>@Creator2</h3><p>Check out this new update! 🚀</p></div>
+            </div>
+        </div>
+
+        <div id="chat-window">
+            <h3>Global Chat</h3>
+            <ul id="messages"></ul>
+            <div style="display:flex; gap:10px;">
+                <input id="chat-input" style="flex:1; padding:10px; border-radius:5px; border:none;" placeholder="Type a message...">
+                <button onclick="sendMessage()" style="padding:10px; background:var(--accent); color:white; border:none; border-radius:5px;">Send</button>
+            </div>
+        </div>
+        
+        <button class="btn-fab" onclick="document.getElementById('chat-window').classList.toggle('active')">💬</button>
+    </div>
+
+    <script>
+        const socket = io();
+
+        // 1. Chat Logic
+        function sendMessage() {
+            const input = document.getElementById('chat-input');
+            if(input.value) {
+                socket.emit('message', { user: 'Me', text: input.value });
+                input.value = '';
+            }
+        }
+
+        socket.on('message', (data) => {
+            const li = document.createElement('li');
+            li.className = 'msg';
+            li.innerHTML = "<b>" + data.user + ":</b> " + data.text;
+            document.getElementById('messages').appendChild(li);
+        });
+
+        // 2. Auto-play Reels on scroll
+        const reels = document.querySelectorAll('video');
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) entry.target.play();
+                else entry.target.pause();
+            });
+        }, { threshold: 0.7 });
+        reels.forEach(video => observer.observe(video));
+    </script>
+</body>
+</html>
+    `);
+});
+
+server.listen(3000, () => {
+    console.log('🚀 SecureChat Pro is live at http://localhost:3000');
+});
